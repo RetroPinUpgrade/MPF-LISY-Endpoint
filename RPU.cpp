@@ -1579,6 +1579,11 @@ boolean RPU_GetSolenoidStatus(byte solNumber) {
   return solOn;
 }
 
+byte RPU_ConvertMSToSolenoidTime(byte solMilliseconds) {
+  // ISR runs at 120Hz, and solenoids are decremented every other time  
+  // so it's just about 8.333ms per tick
+  return solMilliseconds / 8;
+}
 
 #elif (RPU_MPU_ARCHITECTURE>=10)
 
@@ -1652,6 +1657,11 @@ boolean RPU_GetSolenoidStatus(byte solNumber) {
   return solOn;
 }
 
+byte RPU_ConvertMSToSolenoidTime(byte solMilliseconds) {
+  // ISR runs at 960, and solenoids are decremented every other time  
+  // so it's just about 2ms per tick
+  return solMilliseconds / 2; 
+}
 
 #endif 
 

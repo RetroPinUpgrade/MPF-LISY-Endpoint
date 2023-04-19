@@ -117,6 +117,8 @@ byte GetChangedSwitch() {
 }
 
 
+byte SolenoidPulseTimes[32] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+
 
 boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
   if (lisyMSG==NULL) return false;
@@ -224,6 +226,47 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
     case 0x14:
       // Get solenoid status
       LISYSerial.write(RPU_GetSolenoidStatus(lisyMSG[1]));
+      messageHandled = true;
+      break;
+    case 0x15:
+      // Enable solenoid - behavior will depend on architecture
+#if (RPU_MPU_ARCHITECTURE==1)
+      if (lisyMSG[1]>14) {
+        byte continuousSolBit = 0x10 << (lisyMSG[1]-14);
+        RPU_SetContinuousSolenoidBit(true, continuousSolBit);
+      } else {
+        RPU_PushToSolenoidStack(lisyMSG[1], 12, true);
+      }
+#else
+      RPU_SetContinuousSolenoid(true, lisyMSG[1]);
+#endif
+      messageHandled = true;
+      break;
+    case 0x16:
+      // Disable solenoid - behavior will depend on architecture
+#if (RPU_MPU_ARCHITECTURE==1)
+      if (lisyMSG[1]>14) {
+        byte continuousSolBit = 0x10 << (lisyMSG[1]-14);
+        RPU_SetContinuousSolenoidBit(false, continuousSolBit);
+      }
+      // do nothing for momentary solenoids -- they turn themselves off
+#else
+      RPU_SetContinuousSolenoid(false, lisyMSG[1]);
+#endif
+      messageHandled = true;
+      break;
+    case 0x17:
+      // Pulse solenoid - based on configured pulse time
+      if (lisyMSG[1]<32) {
+        RPU_PushToSolenoidStack(lisyMSG[1], SolenoidPulseTimes[lisyMSG[1]], true);
+      }
+      messageHandled = true;
+      break;
+    case 0x18:
+      // Configure solenoid pulse time (convert from milliseconds to architecture appropriate time)
+      if (lisyMSG[1]<32) {
+        SolenoidPulseTimes[lisyMSG[1]] = RPU_ConvertMSToSolenoidTime(lisyMSG[2]);
+      }
       messageHandled = true;
       break;
     case 0x28:

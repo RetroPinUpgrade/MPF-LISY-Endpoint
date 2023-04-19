@@ -104,6 +104,7 @@ boolean RPU_PushToTimedSolenoidStack(byte solenoidNumber, byte numPushes, unsign
 void RPU_UpdateTimedSolenoidStack(unsigned long curTime);
 byte RPU_GetSolenoidCount();
 boolean RPU_GetSolenoidStatus(byte solNumber);
+byte RPU_ConvertMSToSolenoidTime(byte solMilliseconds);
 
 //   Displays
 byte RPU_SetDisplay(int displayNumber, unsigned long value, boolean blankByMagnitude=false, byte minDigits=2);
