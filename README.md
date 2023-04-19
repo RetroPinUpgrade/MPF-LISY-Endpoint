@@ -14,3 +14,4 @@ lisy:
   baud: 115200
 ```
   
+For the "port" setting above, use the serial port of the controlling machine (COM2, /dev/something). The example above is the second serial port on a Mac.  
