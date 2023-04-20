@@ -123,10 +123,7 @@ byte SolenoidPulseTimes[32] = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 1
 boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
   if (lisyMSG==NULL) return false;
   boolean messageHandled = false;
-
-//  char buf[128];
-//  sprintf(buf, "Command = 0x%02X\n", lisyMSG[0]);
-//  Serial.write(buf);
+  byte displayNum = 0;
 
   switch (lisyMSG[0]) {
     case 0x00:
@@ -154,11 +151,13 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
       break;
     case 0x03:
       // Queried for number of simple lamps
+      Serial.write("Asked for number of simple lamps\n");
       LISYSerial.write((byte)RPU_GetLampCount());
       messageHandled = true;
       break;
     case 0x04:
       // Queried for solenoid count
+      Serial.write("Asked for solenoid count\n");
       LISYSerial.write(RPU_GetSolenoidCount());
       messageHandled = true;
       break;
@@ -166,15 +165,17 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
       // Queried for sound count
       // This is only returning sounds that
       // will be played on built-in hardware
+      Serial.write("Asked for sound count\n");
       LISYSerial.write(RPU_GetSoundCount());
       messageHandled = true;
       break;
     case 0x06:
       // Queried for number of displays?
+      Serial.write("Asked for number of displays\n");
 #if (RPU_MPU_ARCHITECTURE==15)
       LISYSerial.write(4);
 #else      
-      LISYSerial.write(5);
+      LISYSerial.write(6); // I'm guessing that BIP and Credits are "different" displays?
 #endif
       break;
     case 0x07:
@@ -183,6 +184,7 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
       // for System 7 displays, because they have
       // comma digits in the 1st and 4th places, 
       // but this seems to expect every digit is the same?
+      Serial.write("Asked for details of displays\n");
 #if (RPU_MPU_ARCHITECTURE==15)
       LISYSerial.write(7);
       LISYSerial.write(4); // 14 segment, fully addressable
@@ -191,7 +193,7 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
         LISYSerial.write(RPU_OS_NUM_DIGITS);
         LISYSerial.write(1); // BCD 7 because of what I said above
       } else {
-        LISYSerial.write(4); // put together ball in play and credits
+        LISYSerial.write(2); // report ball in play and credit displays as 2 digits?
         LISYSerial.write(1); // BCD 7 because of what I said above
       }
 #endif      
@@ -199,32 +201,38 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
       break;
     case 0x08:
       // Queried for "game info" but it won't be used?
+      Serial.write("Asked for game info\n");
       LISYSerial.write("RPU");
       LISYSerial.write(0);
       messageHandled = true;
       break;
     case 0x09:
       // Queried for number of switches
+      Serial.write("Asked for number of switches\n");
       LISYSerial.write(RPU_GetSwitchCount());
       messageHandled = true;
       break;
     case 0x0A:
       // Queried for lamp status
+      Serial.write("Asked for lamp status\n");
       LISYSerial.write(RPU_ReadLampState(lisyMSG[1]));
       messageHandled = true;
       break;
     case 0x0B:
       // Set lamp state on
+      Serial.write("Turned lamp on\n");
       RPU_SetLampState(lisyMSG[1], 1);
       messageHandled = true;
       break;
     case 0x0C:
       // Set lamp state off
+      Serial.write("Turned lamp off\n");
       RPU_SetLampState(lisyMSG[1], 0);
       messageHandled = true;
       break;
     case 0x14:
       // Get solenoid status
+      Serial.write("Solenoid status queried\n");
       LISYSerial.write(RPU_GetSolenoidStatus(lisyMSG[1]));
       messageHandled = true;
       break;
@@ -269,6 +277,23 @@ boolean ProcessLISYMessage(byte *lisyMSG, int numBytes) {
       }
       messageHandled = true;
       break;
+    case 0x1E:
+    case 0x1F:
+    case 0x20:
+    case 0x21:
+    case 0x22:
+    case 0x23:
+    case 0x24:
+      Serial.write("Wrote to display\n");    
+      displayNum = lisyMSG[0] - 0x1E;
+      lisyMSG[2 + lisyMSG[1]] = 0;
+#if (RPU_MPU_ARCHITECTURE<15)
+      RPU_SetDisplayBCDArray(displayNum, &(lisyMSG[2]), true);
+#elif (RPU_MPU_ARCHITECTURE==15)
+      RPU_SetDisplayText(displayNum, &(lisyMSG[2]), true); 
+#endif      
+      messageHandled = true;
+      break;    
     case 0x28:
       // Get switch state
       // TODO: might need to support self-test, clear high score, and up/down
@@ -307,6 +332,7 @@ int GetLISYMessageLength(byte messageType) {
   else if (messageType>=0x0A && messageType<=0x0C) return 2;
   else if (messageType>=0x14 && messageType<=0x17) return 2;
   else if (messageType==0x18) return 3;
+  else if (messageType>=0x1E && messageType<=0x24) return 255; // The actual length will be in the next byte
   else if (messageType==0x28) return 2;
   else if (messageType==0x29) return 1;
   else if (messageType==0x64) return 1;
@@ -326,8 +352,10 @@ boolean LISYUpdate() {
     
     if (LISYBytesSeen==0) {
       LISYBytesExpected = GetLISYMessageLength(byteRead);
-//      sprintf(buf, "MSG 0x%02X len: 0x%02X\n", byteRead, LISYBytesExpected);
-//      Serial.write(buf);
+    } else if (LISYBytesSeen==1 && LISYMessage[0]>=0x1E && LISYMessage[0]<=0x24) {
+      // For this message, the payload size is
+      //described in byte #2 of the message
+      LISYBytesExpected = byteRead + 2;
     }
     LISYMessage[LISYBytesSeen] = byteRead;
     LISYBytesSeen += 1;
@@ -338,6 +366,8 @@ boolean LISYUpdate() {
     }
     
     if (LISYBytesSeen>0 && LISYBytesExpected==LISYBytesSeen) {
+//      sprintf(buf, "Message 0x%02X to be processed\n", LISYMessage[0]);
+//      Serial.write(buf);
       ProcessLISYMessage(LISYMessage, LISYBytesSeen);
       LISYBytesExpected = 0;
       LISYBytesSeen = 0;

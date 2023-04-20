@@ -1689,6 +1689,101 @@ byte RPU_SetDisplay(int displayNumber, unsigned long value, boolean blankByMagni
 
   return blank;
 }
+
+byte RPU_SetDisplayBCDArray(int displayNumber, byte *bcdArray, boolean blankByMagnitude) {
+  if (displayNumber<0 || displayNumber>5) return 0;
+  boolean bcdDataFinished = false;
+  byte blank = 0x00;
+  byte curBlankBit = 0x01;
+  byte curBCD;
+
+  if (displayNumber<4) {
+    for (byte count=0; count<RPU_OS_NUM_DIGITS; count++) {      
+      curBCD = bcdArray[count];
+      if (!bcdDataFinished && curBCD!=0) {
+        if (curBCD>='0' && curBCD<='9') {
+          DisplayDigits[displayNumber][count] = curBCD - '0';
+          blank |= curBlankBit;
+        } else {
+          DisplayDigits[displayNumber][count] = 0x0F;
+        }
+      } else {
+        bcdDataFinished = true;
+      }
+      curBlankBit *= 2;
+    }
+    if (blankByMagnitude) DisplayDigitEnable[displayNumber] = blank;
+  } else {
+    if (displayNumber==4) {
+      // Credit display
+#if (RPU_MPU_ARCHITECTURE<10)
+      byte firstDigit = 1;
+#ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
+      firstDigit = 2;
+#endif
+      blank &= ~RPU_OS_MASK_SHIFT_2;
+      curBCD = bcdArray[0];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayDigits[4][firstDigit] = curBCD - '0';
+        blank |= (RPU_OS_MASK_SHIFT_2 & (RPU_OS_MASK_SHIFT_2/2));
+      }
+      curBCD = bcdArray[1];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayDigits[4][firstDigit+1] = curBCD - '0';
+        blank |= (RPU_OS_MASK_SHIFT_2 & (RPU_OS_MASK_SHIFT_2*2));
+      }
+      if (blankByMagnitude) DisplayDigitEnable[displayNumber] = blank;
+#elif (RPU_MPU_ARCHITECTURE<15)
+      curBCD = bcdArray[0];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayCreditDigits[0] = curBCD - '0';
+        blank |= 1;
+      }
+      curBCD = bcdArray[1];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayCreditDigits[1] = curBCD - '0';
+        blank |= 2;
+      }
+      if (blankByMagnitude) DisplayCreditDigitEnable = blank;
+#endif       
+    } else if (displayNumber==5) {
+      // BIP display
+#if (RPU_MPU_ARCHITECTURE<10)
+      byte firstDigit = 4;
+#ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
+      firstDigit = 5;
+#endif
+      blank &= ~RPU_OS_MASK_SHIFT_2;
+      curBCD = bcdArray[0];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayDigits[4][firstDigit] = curBCD - '0';
+        blank |= (RPU_OS_MASK_SHIFT_1 & (RPU_OS_MASK_SHIFT_1/1));
+      }
+      curBCD = bcdArray[1];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayDigits[4][firstDigit+1] = curBCD - '0';
+        blank |= (RPU_OS_MASK_SHIFT_1 & (RPU_OS_MASK_SHIFT_1*1));
+      }
+      if (blankByMagnitude) DisplayDigitEnable[displayNumber] = blank;
+#elif (RPU_MPU_ARCHITECTURE<15)
+      curBCD = bcdArray[0];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayBIPDigits[0] = curBCD - '0';
+        blank |= 1;
+      }
+      curBCD = bcdArray[1];
+      if (curBCD>='0' && curBCD<='9') {
+        DisplayBIPDigits[1] = curBCD - '0';
+        blank |= 2;
+      }
+      if (blankByMagnitude) DisplayBIPDigitEnable = blank;
+#endif         
+    }
+  }
+  
+  return blank;
+}
+
 #endif
 
 
@@ -1705,7 +1800,7 @@ void RPU_SetDisplayCredits(int value, boolean displayOn, boolean showBothDigits)
 
   if (displayOn) {
     if (value>9 || showBothDigits) enableMask |= RPU_OS_MASK_SHIFT_2; 
-    else enableMask |= 0x04;
+    else enableMask |= (RPU_OS_MASK_SHIFT_2 & (RPU_OS_MASK_SHIFT_2*2));
   }
 
   DisplayDigitEnable[4] = enableMask;
@@ -1723,7 +1818,7 @@ void RPU_SetDisplayBallInPlay(int value, boolean displayOn, boolean showBothDigi
 
   if (displayOn) {
     if (value>9 || showBothDigits) enableMask |= RPU_OS_MASK_SHIFT_1;
-    else enableMask |= 0x20;
+    else enableMask |= (RPU_OS_MASK_SHIFT_1 & (RPU_OS_MASK_SHIFT_1*2));
   }
 
   DisplayDigitEnable[4] = enableMask;

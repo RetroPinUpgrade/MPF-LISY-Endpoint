@@ -108,6 +108,7 @@ byte RPU_ConvertMSToSolenoidTime(byte solMilliseconds);
 
 //   Displays
 byte RPU_SetDisplay(int displayNumber, unsigned long value, boolean blankByMagnitude=false, byte minDigits=2);
+byte RPU_SetDisplayBCDArray(int displayNumber, byte *bcdArray, boolean blankByMagnitude=true);
 void RPU_SetDisplayBlank(int displayNumber, byte bitMask);
 void RPU_SetDisplayCredits(int value, boolean displayOn = true, boolean showBothDigits=true);
 void RPU_SetDisplayMatch(int value, boolean displayOn = true, boolean showBothDigits=true);
